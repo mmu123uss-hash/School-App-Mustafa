@@ -1,10 +1,13 @@
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,14 +15,16 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { STUDENTS } from "@/constants/students";
 import { useColors } from "@/hooks/useColors";
+import { exportStudentReportPDF } from "@/utils/generateStudentReportPdf";
 
 export default function StudentGradesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { studentId } = useAuth();
-  const { getStudentGrades, exams } = useApp();
+  const { getStudentGrades, grades, exams } = useApp();
   const student = STUDENTS.find((s) => s.id === studentId);
   const myGrades = getStudentGrades(studentId || "");
+  const [isExporting, setIsExporting] = useState(false);
 
   const getScoreColor = (score: number, max: number) => {
     const p = score / max;
@@ -40,16 +45,35 @@ export default function StudentGradesScreen() {
   const avgScore =
     myGrades.length > 0
       ? Math.round(
-          myGrades.reduce((acc, g) => acc + (g.score / g.exam.maxScore) * 100, 0) /
-            myGrades.length
+          myGrades.reduce(
+            (acc, g) => acc + (g.score / g.exam.maxScore) * 100,
+            0
+          ) / myGrades.length
         )
       : null;
 
+  const handleExport = async () => {
+    if (!student) return;
+    if (myGrades.length === 0) {
+      Alert.alert("تنبيه", "لا توجد درجات لتصديرها بعد");
+      return;
+    }
+    setIsExporting(true);
+    const result = await exportStudentReportPDF(student, grades, exams);
+    setIsExporting(false);
+    if (!result.success) {
+      Alert.alert("خطأ", result.error ?? "تعذّر تصدير البطاقة");
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header banner */}
       <View style={[styles.headerBanner, { backgroundColor: "#1565C0" }]}>
         <View style={styles.bannerLeft}>
-          <View style={[styles.avatar, { backgroundColor: "rgba(255,255,255,0.2)" }]}>
+          <View
+            style={[styles.avatar, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+          >
             <Text style={styles.avatarTxt}>{student?.name.charAt(0)}</Text>
           </View>
           <View>
@@ -57,18 +81,38 @@ export default function StudentGradesScreen() {
             <Text style={styles.bannerCode}>{student?.code}</Text>
           </View>
         </View>
-        <View style={styles.bannerStats}>
-          {avgScore !== null ? (
-            <>
-              <Text style={styles.statNum}>{avgScore}%</Text>
-              <Text style={styles.statLbl}>المعدل</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.statNum}>{exams.length}</Text>
-              <Text style={styles.statLbl}>امتحان</Text>
-            </>
-          )}
+
+        <View style={styles.bannerRight}>
+          <View style={styles.bannerStats}>
+            {avgScore !== null ? (
+              <>
+                <Text style={styles.statNum}>{avgScore}%</Text>
+                <Text style={styles.statLbl}>المعدل</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.statNum}>{exams.length}</Text>
+                <Text style={styles.statLbl}>امتحان</Text>
+              </>
+            )}
+          </View>
+
+          {/* Export button */}
+          <TouchableOpacity
+            style={[styles.exportBtn, isExporting && { opacity: 0.7 }]}
+            onPress={handleExport}
+            disabled={isExporting}
+            activeOpacity={0.8}
+          >
+            {isExporting ? (
+              <ActivityIndicator size="small" color="#1565C0" />
+            ) : (
+              <>
+                <Feather name="download" size={13} color="#1565C0" />
+                <Text style={styles.exportTxt}>بطاقتي</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -169,7 +213,7 @@ export default function StudentGradesScreen() {
                     ]}
                     numberOfLines={1}
                   >
-                    {item.feedback}
+                    💬 {item.feedback}
                   </Text>
                 ) : null}
               </View>
@@ -190,32 +234,53 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 20,
   },
-  bannerLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  bannerLeft: { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
+  bannerRight: { alignItems: "flex-end", gap: 10 },
   avatar: {
     width: 54,
     height: 54,
     borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   avatarTxt: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   bannerName: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: "Inter_700Bold",
     color: "#FFFFFF",
   },
   bannerCode: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.72)",
     marginTop: 2,
   },
   bannerStats: { alignItems: "center" },
-  statNum: { fontSize: 30, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
+  statNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFFFFF" },
   statLbl: {
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.72)",
+  },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F9A825",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  exportTxt: {
+    color: "#1565C0",
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
   },
   list: { padding: 16, gap: 12 },
   empty: {
