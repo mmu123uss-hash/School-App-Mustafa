@@ -71,6 +71,15 @@ export default function TeacherLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="stats"
+        options={{
+          title: "إحصائيات",
+          tabBarIcon: ({ color }) => (
+            <Feather name="pie-chart" size={22} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
