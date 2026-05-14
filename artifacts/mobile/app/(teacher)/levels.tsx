@@ -1,12 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -61,6 +62,7 @@ export default function LevelsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { grades, exams } = useApp();
+  const [query, setQuery] = useState("");
 
   const studentStats = useMemo(() => {
     return STUDENTS.map((student) => {
@@ -80,6 +82,20 @@ export default function LevelsScreen() {
       return { student, avg, count: sg.length };
     }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
   }, [grades, exams]);
+
+  const q = query.trim().toLowerCase();
+
+  const filtered = useMemo(
+    () =>
+      q
+        ? studentStats.filter(
+            (s) =>
+              s.student.name.toLowerCase().includes(q) ||
+              s.student.code.toLowerCase().includes(q)
+          )
+        : null,
+    [studentStats, q]
+  );
 
   const withGrades = studentStats.filter((s) => s.avg !== null);
   const top5 = withGrades.slice(0, 5);
@@ -114,7 +130,139 @@ export default function LevelsScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {withGrades.length === 0 ? (
+      {/* Search bar — always visible */}
+      <View
+        style={[
+          styles.searchWrap,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Feather name="search" size={16} color={colors.mutedForeground} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.foreground }]}
+          placeholder="ابحث بالاسم أو الرمز..."
+          placeholderTextColor={colors.mutedForeground}
+          value={query}
+          onChangeText={setQuery}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+          textAlign="right"
+          autoCorrect={false}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery("")} hitSlop={8}>
+            <Feather name="x" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* ── Filtered search results ── */}
+      {filtered !== null ? (
+        filtered.length === 0 ? (
+          <View style={styles.noData}>
+            <Feather name="search" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.noDataTitle, { color: colors.foreground }]}>
+              لا نتائج
+            </Text>
+            <Text style={[styles.noDataSub, { color: colors.mutedForeground }]}>
+              لم يُعثر على طالب باسم أو رمز "{query}"
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.section,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                نتائج البحث ({filtered.length})
+              </Text>
+            </View>
+            {filtered.map((item, index) => (
+              <View
+                key={item.student.id}
+                style={[
+                  styles.studentRow,
+                  index < filtered.length - 1 && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.avatar,
+                    {
+                      backgroundColor: item.avg !== null
+                        ? getAvgColor(item.avg) + "20"
+                        : colors.muted,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarTxt,
+                      {
+                        color: item.avg !== null
+                          ? getAvgColor(item.avg)
+                          : colors.mutedForeground,
+                      },
+                    ]}
+                  >
+                    {item.student.name.charAt(0)}
+                  </Text>
+                </View>
+                <View style={styles.studentMeta}>
+                  <Text style={[styles.studentName, { color: colors.foreground }]}>
+                    {item.student.name}
+                  </Text>
+                  <Text style={[styles.studentSub, { color: colors.mutedForeground }]}>
+                    {item.student.code} · {item.count} امتحان
+                  </Text>
+                </View>
+                <View style={styles.scoreWrap}>
+                  {item.avg !== null ? (
+                    <>
+                      <Text style={[styles.scorePct, { color: getAvgColor(item.avg) }]}>
+                        {item.avg}%
+                      </Text>
+                      <View style={[styles.labelBadge, { backgroundColor: getAvgColor(item.avg) + "18" }]}>
+                        <Text style={[styles.labelTxt, { color: getAvgColor(item.avg) }]}>
+                          {getSummaryLabel(item.avg)}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <Text style={[styles.noGradeTxt, { color: colors.mutedForeground }]}>
+                      لا درجات
+                    </Text>
+                  )}
+                </View>
+                {item.avg !== null && (
+                  <TouchableOpacity
+                    style={styles.waBtn}
+                    onPress={() =>
+                      openWhatsApp(
+                        buildShareMsg(
+                          item.student.name,
+                          item.student.code,
+                          item.avg!,
+                          item.count
+                        )
+                      )
+                    }
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.waIcon}>📲</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+        )
+      ) : withGrades.length === 0 ? (
         <View style={styles.noData}>
           <Feather name="users" size={64} color={colors.mutedForeground} />
           <Text style={[styles.noDataTitle, { color: colors.foreground }]}>
@@ -423,6 +571,21 @@ export default function LevelsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 14, gap: 14 },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 2,
+  },
   noData: {
     alignItems: "center",
     justifyContent: "center",
