@@ -80,6 +80,15 @@ export default function TeacherLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="levels"
+        options={{
+          title: "المستويات",
+          tabBarIcon: ({ color }) => (
+            <Feather name="users" size={22} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

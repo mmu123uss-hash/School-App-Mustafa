@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Linking,
   Modal,
   Platform,
   StyleSheet,
@@ -74,6 +75,49 @@ export default function GradesScreen() {
   const gradedCount = selectedExam
     ? STUDENTS.filter((s) => !!getGrade(s.id, selectedExam.id)).length
     : 0;
+
+  const openWhatsApp = (student: (typeof STUDENTS)[0]) => {
+    if (!selectedExam) return;
+    const grade = getGrade(student.id, selectedExam.id);
+    const pct = grade
+      ? Math.round((grade.score / selectedExam.maxScore) * 100)
+      : null;
+    const label =
+      pct !== null
+        ? pct >= 90
+          ? "امتياز"
+          : pct >= 75
+          ? "جيد جداً"
+          : pct >= 60
+          ? "جيد"
+          : pct >= 50
+          ? "مقبول"
+          : "راسب"
+        : null;
+    const msg = encodeURIComponent(
+      `🎓 *EnglishApp - Mustafa Khalid*\n` +
+        `━━━━━━━━━━━━━━━\n` +
+        `👤 الطالب: ${student.name}\n` +
+        `🔑 الرمز: ${student.code}\n` +
+        `📝 الامتحان: ${selectedExam.title}\n` +
+        (grade
+          ? `✅ الدرجة: ${grade.score} / ${selectedExam.maxScore}\n` +
+            `📊 النسبة: ${pct}%\n` +
+            `⭐ التقييم: ${label}\n` +
+            (grade.feedback ? `💬 ملاحظة: ${grade.feedback}\n` : "")
+          : `⏳ لم يتم تصحيح الامتحان بعد\n`) +
+        `━━━━━━━━━━━━━━━\n` +
+        `#EnglishApp_MustafaKhalid`
+    );
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const url =
+      Platform.OS === "web"
+        ? `https://web.whatsapp.com/send?text=${msg}`
+        : `https://wa.me/?text=${msg}`;
+    Linking.openURL(url).catch(() =>
+      Linking.openURL(`https://wa.me/?text=${msg}`)
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -229,11 +273,21 @@ export default function GradesScreen() {
                     </Text>
                   </View>
                 )}
+                <TouchableOpacity
+                  style={styles.waBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openWhatsApp(item);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.waIcon}>📲</Text>
+                </TouchableOpacity>
                 <Feather
                   name="edit-2"
                   size={16}
                   color={colors.mutedForeground}
-                  style={{ marginLeft: 6 }}
+                  style={{ marginLeft: 2 }}
                 />
               </TouchableOpacity>
             );
@@ -460,6 +514,15 @@ const styles = StyleSheet.create({
   gradeMax: { fontSize: 12, fontFamily: "Inter_400Regular" },
   noGrade: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   noGradeTxt: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  waBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#25D36615",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  waIcon: { fontSize: 16 },
   noExam: {
     flex: 1,
     alignItems: "center",
