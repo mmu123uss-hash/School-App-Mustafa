@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -16,11 +17,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, Exam } from "@/context/AppContext";
 import { STUDENTS } from "@/constants/students";
 import { useColors } from "@/hooks/useColors";
+import { exportExamPDF } from "@/utils/generateReportPdf";
 
 export default function GradesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { exams, getGrade, setGrade } = useApp();
+  const { exams, grades, getGrade, setGrade } = useApp();
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [gradeModal, setGradeModal] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -29,6 +31,17 @@ export default function GradesScreen() {
   >(null);
   const [scoreInput, setScoreInput] = useState("");
   const [feedbackInput, setFeedbackInput] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!selectedExam) return;
+    setIsExporting(true);
+    const result = await exportExamPDF(selectedExam, grades);
+    setIsExporting(false);
+    if (!result.success) {
+      Alert.alert("خطأ", result.error ?? "تعذّر تصدير التقرير");
+    }
+  };
 
   const openGrade = (student: (typeof STUDENTS)[0]) => {
     if (!selectedExam) return;
@@ -87,12 +100,30 @@ export default function GradesScreen() {
 
       {selectedExam && (
         <View style={styles.progressRow}>
-          <Text style={[styles.progressTxt, { color: colors.mutedForeground }]}>
-            تم تصحيح {gradedCount} من {STUDENTS.length} طالب
-          </Text>
-          <View
-            style={[styles.progBg, { backgroundColor: colors.muted }]}
-          >
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressTxt, { color: colors.mutedForeground }]}>
+              تم تصحيح {gradedCount} من {STUDENTS.length} طالب
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.exportBtn,
+                isExporting && { opacity: 0.7 },
+              ]}
+              onPress={handleExport}
+              disabled={isExporting}
+              activeOpacity={0.8}
+            >
+              {isExporting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Feather name="download" size={14} color="#FFFFFF" />
+                  <Text style={styles.exportTxt}>تصدير PDF</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.progBg, { backgroundColor: colors.muted }]}>
             <View
               style={[
                 styles.progFill,
@@ -377,7 +408,31 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   progressRow: { paddingHorizontal: 16, marginBottom: 8, gap: 6 },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   progressTxt: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "right" },
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#1565C0",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: "#1565C0",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  exportTxt: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
   progBg: { height: 5, borderRadius: 3, overflow: "hidden" },
   progFill: { height: 5, borderRadius: 3 },
   list: { paddingHorizontal: 16, gap: 10 },
